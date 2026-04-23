@@ -1,0 +1,193 @@
+# AutoGen Light 🤖
+
+> 轻量级多智能体协作框架 | 3行定义Agent，5行跑起群组协作
+
+[//]: # (v2.0.0)
+
+**核心定位**: 不是AutoGen的完整替代品，而是**快速体验多Agent协作的最短路径**。
+
+## 5秒判断是否适合你
+
+```
+你需要多个AI一起协作完成任务 ✅ → 适合
+你需要分布式高可用Agent集群 ❌ → 不适合
+```
+
+## 安装
+
+```bash
+pip install autogen-light
+# 或用源码
+git clone https://github.com/chenshuai9101/autogen-light
+cd autogen-light
+pip install -e .
+```
+
+## 配置
+
+```bash
+export DEEPSEEK_API_KEY=sk-your-key-here
+```
+
+## 改Key就能跑的示例
+
+### 🚀 示例1：2个Agent聊一个话题
+
+```python
+from autogen_light import AutoGenLight
+
+ag = AutoGenLight()
+
+# 用不同角色让2个Agent碰撞出不同观点
+辩论家A = ag.create_assistant("辩论家A", "你支持'技术进步应该开放'")
+辩论家A.api_key = "你的DeepSeek Key"  # 或设置环境变量
+
+辩论家B = ag.create_assistant("辩论家B", "你支持'技术进步应该谨慎'")
+辩论家B.api_key = "你的DeepSeek Key"
+
+# 3轮辩论
+group = ag.create_group_chat([辩论家A, 辩论家B], max_round=3)
+result = group.run("讨论：AI是否应该开源")
+print(result["summary"])
+```
+
+### 🔧 示例2：Agent带工具能力
+
+```python
+from autogen_light import AutoGenLight
+
+ag = AutoGenLight()
+
+# 研究员Agent：自带搜索能力
+研究员 = ag.create_assistant("研究员", "你是一个研究员，负责搜索和验证信息")
+研究员.api_key = "你的DeepSeek Key"
+研究员.register_tool("search_news", lambda q: f"【搜索结果】{q}", "搜索新闻")
+
+# 分析师Agent：负责分析
+分析师 = ag.create_assistant("分析师", "你是一个分析师，负责总结和提炼观点")
+分析师.api_key = "你的DeepSeek Key"
+
+group = ag.create_group_chat([研究员, 分析师], max_round=2)
+result = group.run("搜索最新的AI新闻并做分析")
+print(result["summary"])
+```
+
+### 👥 示例3：产品团队协作
+
+```python
+from autogen_light import AutoGenLight
+
+ag = AutoGenLight()
+
+# 模拟一个产品开发团队的协作
+pm = ag.create_assistant("产品经理", "你负责提出产品需求，回答不超过50字")
+pm.api_key = "你的DeepSeek Key"
+
+dev = ag.create_assistant("开发者", "你负责技术方案设计，回答不超过50字")
+dev.api_key = "你的DeepSeek Key"
+
+qa = ag.create_assistant("测试", "你负责设计测试用例，回答不超过50字")
+qa.api_key = "你的DeepSeek Key"
+
+# 用户代理 - AI驱动的真人模拟
+用户 = ag.create_user_proxy("用户")
+用户._use_llm = True  # AI会像真人一样反馈
+
+group = ag.create_group_chat([用户, pm, dev, qa], max_round=3)
+result = group.run("设计一个用户登录功能")
+```
+
+## 命令行快速试
+
+```bash
+# DeepSeek对话
+python -c "from autogen_light import AutoGenLight; ag=AutoGenLight(); a=ag.create_assistant('A','你好'); a.api_key='你的Key'; r=ag.create_group_chat([a],1).run('用5个字回复'); print(r['conversation'])"
+```
+
+## 错误处理指南
+
+```
+报错信息                      原因                     解决方案
+────────────────────────────  ──────────────────      ────────────────────────
+"未设置API Key"               agent.api_key没配       设置api_key或环境变量
+"HTTP 400"                   API请求格式错误          检查model参数
+"HTTP Error"                 API异常                  检查网络连接
+"工具不存在"                 调用了未注册的工具       先register_tool()
+Agent回复重复                 上下文管理问题           减少max_round或增加角色差异
+```
+
+## 架构一览
+
+```
+autogen_light/
+├── __init__.py          主类 AutoGenLight
+├── core/
+│   ├── agent_base.py    Agent基类
+│   ├── group_chat.py    群组对话 (v2: 上下文摘要)
+│   └── message_bus.py   消息总线
+├── agents/
+│   ├── assistant.py     助手Agent (v2: Function Calling)
+│   └── user_proxy.py    用户代理 (AI驱动/终端输入)
+├── workflows/
+│   └── code_review.py   预设工作流
+```
+
+## 与AutoGen的对比
+
+如果你用过AutoGen，这里方便你快速映射：
+
+| AutoGen概念 | AutoGen Light概念 | 差异 |
+|-------------|------------------|------|
+| AssistantAgent | AssistantAgent | 更简单的配置，不用写config |
+| UserProxyAgent | UserProxyAgent | 支持AI驱动/终端输入 |
+| GroupChat | GroupChat | max_round直接控制轮次 |
+| Tool | register_tool() | 函数式注册，更简单 |
+| Team/Orch | 无 | ⚠️ Light版简化了团队管理 |
+| 嵌套Agent | 不支持 | ⚠️ 当前不支持 |
+
+## API速查
+
+```python
+AutoGenLight()                      # 初始化
+    .create_assistant(name, system_message)  # 创建助手Agent
+    .create_user_proxy(name, interactive?)   # 创建用户代理
+    .create_group_chat(agents, max_round)    # 创建群组
+    .run(task)                               # 运行
+
+AssistantAgent
+    .register_tool(name, func, desc)  # 注册工具(FC)
+    .api_key                          # 设置API Key
+    .conversation_history             # 对话历史(自动管理)
+
+UserProxyAgent
+    ._use_llm = True                  # 启用AI驱动
+    .enable_real_user(True)           # 启用终端输入
+    .set_auto_reply(text)             # 设置默认回复
+```
+
+## License
+
+MIT
+
+---
+
+## 💖 赞助支持
+
+如果这个项目帮到了你，欢迎赞助支持——每一份心意都是前行的动力 🙏
+
+<div align="center">
+  <table>
+    <tr>
+      <td align="center">
+        <img src="./assets/wechat.jpg" width="200" alt="微信支付">
+        <br>
+        <b>微信</b>
+      </td>
+      <td align="center">
+        <img src="./assets/alipay.jpg" width="200" alt="支付宝">
+        <br>
+        <b>支付宝</b>
+      </td>
+    </tr>
+  </table>
+</div>
